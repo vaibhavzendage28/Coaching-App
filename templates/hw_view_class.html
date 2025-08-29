@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+  <h4 class="mb-3">HW Records — Class: {{ class_name }}</h4>
+
+  <form class="row g-2 mb-3" method="get">
+    <input type="hidden" name="class_name" value="{{ class_name }}">
+    <div class="col-md-3">
+      <label class="form-label">Start</label>
+      <input type="date" class="form-control" name="start" value="{{ start or '' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">End</label>
+      <input type="date" class="form-control" name="end" value="{{ end or '' }}">
+    </div>
+    <div class="col-md-6 d-flex align-items-end gap-2">
+      <button class="btn btn-outline-primary">Filter</button>
+      <a class="btn btn-outline-success"
+         href="{{ url_for('hw_export_class_csv', class_name=class_name, start=start, end=end) }}">Export CSV</a>
+      <a class="btn btn-secondary" href="{{ url_for('hw_tracker', class_name=class_name) }}">Back</a>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Student</th>
+          <th>Status</th>
+          <th>Grade</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.hw_date }}</td>
+            <td>{{ r.student_name }}</td>
+            <td>
+              {% if r.status == 'done' %}
+                <span class="badge bg-success">Done</span>
+              {% else %}
+                <span class="badge bg-danger">Not Done</span>
+              {% endif %}
+            </td>
+            <td>{{ r.grade or '' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="text-muted">No records.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .hero {
+    background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+    color: #fff;
+    border-radius: 1rem;
+  }
+  .hero .badge-pill {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.35);
+  }
+  .card-elevated {
+    border: 0;
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.07);
+  }
+  .soft {
+    background: #f8fafc;
+    border-radius: 1rem;
+  }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #e2e8f0; display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #334155;
+  }
+</style>
+
+<div class="container py-4">
+
+  <!-- Hero -->
+  <div class="hero p-4 p-md-5 mb-4 shadow-sm">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+      <div>
+        <h2 class="mb-2">Welcome 👋</h2>
+        <p class="mb-3 mb-md-0">Track what you did, plan what’s next, and monitor homework—fast and clean.</p>
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-light btn-lg" href="{{ url_for('tasks') }}">Open Tasks</a>
+        <a class="btn btn-outline-light btn-lg" href="{{ url_for('hw_tracker') }}">Homework Tracker</a>
+      </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+      <span class="badge badge-pill px-3 py-2">Daily logging</span>
+      <span class="badge badge-pill px-3 py-2">Class-wise reports</span>
+      <span class="badge badge-pill px-3 py-2">CSV export</span>
+    </div>
+  </div>
+
+  <!-- Key Cards -->
+  <div class="row gy-3">
+    <div class="col-lg-8">
+      <div class="card card-elevated">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h5 class="mb-0">Quick Actions</h5>
+            <small class="text-muted">Get started in one click</small>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <a class="text-decoration-none" href="{{ url_for('tasks') }}">
+                <div class="soft p-3 h-100">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="avatar">T</div>
+                    <div>
+                      <div class="fw-semibold">Go to Tasks</div>
+                      <div class="text-muted small">Log today’s work and plan next</div>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="text-decoration-none" href="{{ url_for('hw_tracker') }}">
+                <div class="soft p-3 h-100">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="avatar">HW</div>
+                    <div>
+                      <div class="fw-semibold">Open Homework Tracker</div>
+                      <div class="text-muted small">Mark done/not done & grade</div>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </div>
+
+            <!-- Optional deep links (show/hide as needed) -->
+            <div class="col-md-6">
+              <a class="btn btn-outline-primary w-100" href="{{ url_for('hw_tracker') }}#add-class">
+                + Add Class
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="btn btn-outline-primary w-100" href="{{ url_for('hw_tracker') }}#add-student">
+                + Add Student
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity (optional placeholders; wire to your data if available) -->
+      <div class="card card-elevated mt-3">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h5 class="mb-0">Recent Activity</h5>
+            <small class="text-muted">Last 5 items</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Type</th>
+                  <th>Details</th>
+                  <th class="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {# Replace these with real rows if you pass data from app.py #}
+                {% for r in recent or [] %}
+                <tr>
+                  <td>{{ r.when }}</td>
+                  <td>{{ r.kind }}</td>
+                  <td class="text-truncate" style="max-width: 320px;">{{ r.text }}</td>
+                  <td class="text-end">
+                    {% if r.kind == 'Task' %}
+                      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('tasks') }}">Open</a>
+                    {% else %}
+                      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('hw_tracker') }}">Open</a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="4" class="text-muted">No recent activity yet. Start by adding a Task or marking HW.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <div class="card card-elevated">
+        <div class="card-body">
+          <h6 class="text-uppercase text-muted mb-3">Today’s Snapshot</h6>
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="soft p-3 h-100">
+                <div class="small text-muted">Open Tasks</div>
+                <div class="fs-4 fw-semibold">{{ task_open|default(0) }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="soft p-3 h-100">
+                <div class="small text-muted">HW Records Today</div>
+                <div class="fs-4 fw-semibold">{{ hw_today|default(0) }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="soft p-3 h-100">
+                <div class="small text-muted">Classes</div>
+                <div class="fs-4 fw-semibold">{{ class_count|default(0) }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="soft p-3 h-100">
+                <div class="small text-muted">Students</div>
+                <div class="fs-4 fw-semibold">{{ student_count|default(0) }}</div>
+              </div>
+            </div>
+          </div>
+          <hr>
+          <h6 class="text-uppercase text-muted mb-3">Quick Links</h6>
+          <div class="d-grid gap-2">
+            <a class="btn btn-primary" href="{{ url_for('tasks') }}">Log Today’s Work</a>
+            <a class="btn btn-outline-primary" href="{{ url_for('hw_tracker') }}">Mark Homework</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('reports') if url_for else '#' }}">View Reports</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-elevated mt-3">
+        <div class="card-body">
+          <h6 class="text-uppercase text-muted mb-3">Tips</h6>
+          <ul class="mb-0">
+            <li class="mb-2">Use <span class="fw-semibold">Homework Tracker</span> to record by class and export CSV for management.</li>
+            <li class="mb-2">Keep tasks short and specific—finish times improve by 30–40%.</li>
+            <li class="mb-0">Pin your most-used class with a browser bookmark to save time.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

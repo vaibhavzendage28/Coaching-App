@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="p-3 bg-white rounded shadow-sm">
+      <h4 class="mb-3">Add Task</h4>
+      <form method="post" action="{{ url_for('add_task') }}">
+        <div class="mb-2">
+          <label class="form-label">Title *</label>
+          <input name="title" class="form-control" placeholder="e.g., Prepare Class 10 Algebra notes" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Details / checklist"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Category</label>
+          <input name="category" class="form-control" placeholder="Teaching / Admin / Parent / Exam">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Due date</label>
+          <input type="date" name="due_date" class="form-control">
+        </div>
+        <button class="btn btn-primary">Add</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="p-3 bg-white rounded shadow-sm">
+      <h4 class="mb-3">Your Tasks</h4>
+
+      {% if tasks|length == 0 %}
+        <p class="text-muted">No tasks yet. Add your first one!</p>
+      {% else %}
+        <div class="list-group">
+          {% for t in tasks %}
+            <div class="list-group-item d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold {% if t.is_done %}text-decoration-line-through text-muted{% endif %}">
+                  {{ t.title }}
+                  {% if t.category %}<span class="badge text-bg-secondary ms-2">{{ t.category }}</span>{% endif %}
+                </div>
+                {% if t.notes %}<div class="small text-muted mt-1">{{ t.notes }}</div>{% endif %}
+                {% if t.due_date %}<div class="small">Due: {{ t.due_date }}</div>{% endif %}
+              </div>
+              <div class="d-flex gap-2">
+                <form method="post" action="{{ url_for('toggle_task', task_id=t.id) }}">
+                  <button class="btn btn-sm {% if t.is_done %}btn-outline-secondary{% else %}btn-success{% endif %}">
+                    {% if t.is_done %}Undo{% else %}Done{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('delete_task', task_id=t.id) }}" onsubmit="return confirm('Delete this task?')">
+                  <button class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

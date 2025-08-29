@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+
+  <h3 class="mb-3">Homework Tracker</h3>
+
+  <!-- Alerts -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- Date/Class selector -->
+  <form class="row g-3 mb-3" method="get" action="{{ url_for('hw_tracker') }}">
+    <div class="col-md-3">
+      <label class="form-label">Date</label>
+      <input type="date" class="form-control" name="hw_date" value="{{ hw_date }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Class</label>
+      <select class="form-select" name="class_name" onchange="this.form.submit()">
+        {% for c in classes %}
+          <option value="{{ c.name }}" {% if selected_class == c.name %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-5 d-flex align-items-end gap-2">
+      <button type="submit" class="btn btn-outline-primary">Load</button>
+      <a class="btn btn-outline-success"
+         href="{{ url_for('hw_view_class', class_name=selected_class, start=hw_date, end=hw_date) }}">View (Class, this date)</a>
+      <a class="btn btn-outline-secondary"
+         href="{{ url_for('hw_export_class_csv', class_name=selected_class, start=hw_date, end=hw_date) }}">Export CSV</a>
+    </div>
+  </form>
+
+  <!-- Quick add Class / Student + Delete Class -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <form method="post" action="{{ url_for('hw_add_class') }}" class="card card-body" id="add-class">
+        <h6 class="mb-2">Add Class</h6>
+        <input type="text" name="class_name" class="form-control mb-2" placeholder="e.g., 8A" required>
+        <button class="btn btn-sm btn-primary">Add</button>
+      </form>
+
+      <!-- Delete Class (separate form, not nested in Save Marks) -->
+      <form method="post" action="{{ url_for('hw_delete_class') }}" class="card card-body mt-3" id="delete-class-form"
+            data-class="{{ selected_class }}"
+            data-del-confirm-class="{{ request.args.get('del_confirm_class') or '' }}"
+            data-del-students-cnt="{{ request.args.get('del_students_cnt') or 0 }}">
+        <h6 class="mb-2 text-danger">Delete Class</h6>
+        <div class="mb-2">
+          <input type="text" class="form-control" name="class_name" value="{{ selected_class }}" readonly>
+        </div>
+        <input type="hidden" name="confirm" id="deleteClassConfirm" value="no">
+        <button class="btn btn-sm btn-outline-danger w-100">Delete This Class</button>
+        <small class="text-muted d-block mt-2">Deletes this class, all its students, and their homework.</small>
+      </form>
+    </div>
+
+    <div class="col-md-8">
+      <form method="post" action="{{ url_for('hw_add_student') }}" class="card shadow-sm border-0 rounded-3" id="add-student">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="card-title mb-0">➕ Add Student</h5>
+      <a class="small text-decoration-none" href="{{ url_for('hw_import_students', class_name=selected_class) }}">
+        <i class="bi bi-upload"></i> Bulk import (CSV)
+      </a>
+    </div>
+
+    <div class="row g-3 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Student Name</label>
+        <input type="text" name="student_name" class="form-control" placeholder="e.g., Aarav Patil" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Class</label>
+        <select name="student_class" class="form-select" required>
+          {% for c in classes %}
+            <option value="{{ c.name }}" {% if selected_class == c.name %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary">
+          <i class="bi bi-plus-circle me-1"></i> Add
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+    </div>
+  </div>
+
+  <!-- Save Marks form -->
+  <form
+    method="post"
+    action="{{ url_for('hw_tracker') }}"
+    id="hw-form"
+    data-has-existing="{{ 1 if (existing_cnt|default(0))|int > 0 else 0 }}"
+    data-confirm-needed="{{ 1 if (confirm_needed|default('0'))|int == 1 else 0 }}"
+    data-class="{{ selected_class }}"
+    data-date="{{ hw_date }}"
+  >
+    <input type="hidden" name="hw_date" value="{{ hw_date }}">
+    <input type="hidden" name="class_name" value="{{ selected_class }}">
+    <input type="hidden" name="confirm" id="confirmField" value="no">
+
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Students in {{ selected_class or "—" }}</h6>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('done')">Mark all Done</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAll('not_done')">Mark all Not Done</button>
+          </div>
+        </div>
+
+        {% if students %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th style="width: 36px;">#</th>
+                  <th>Student</th>
+                  <th>Status</th>
+                  <th style="width: 120px;">Grade</th>
+                  <th>Quick actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in students %}
+                {% set m = marks.get(s.student_id) %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td>{{ s.name }}</td>
+                  <td>
+                    <div class="btn-group" role="group">
+                      <input type="radio" class="btn-check" name="status_{{ s.student_id }}" id="sd{{ s.student_id }}" value="done" {% if m and m.status=='done' %}checked{% endif %}>
+                      <label class="btn btn-outline-success btn-sm" for="sd{{ s.student_id }}">Done</label>
+
+                      <input type="radio" class="btn-check" name="status_{{ s.student_id }}" id="sn{{ s.student_id }}" value="not_done" {% if m and m.status=='not_done' %}checked{% endif %}>
+                      <label class="btn btn-outline-danger btn-sm" for="sn{{ s.student_id }}">Not</label>
+                    </div>
+                  </td>
+                  <td>
+                    <input type="text" class="form-control form-control-sm" name="grade_{{ s.student_id }}" value="{{ m.grade if m else '' }}" placeholder="A/B/..">
+                  </td>
+                  <td class="d-flex flex-wrap gap-1">
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('hw_view_student', student_id=s.student_id) }}">History</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('hw_export_student_csv', student_id=s.student_id) }}">CSV</a>
+
+                    <!-- Delete student: submit a separate, hidden form via the 'form' attribute -->
+                    <button
+                      type="submit"
+                      class="btn btn-sm btn-outline-danger"
+                      form="del-stu-{{ s.student_id }}"
+                      onclick="return confirm('Delete {{ s.name }} and all their homework records?');"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="text-end">
+            <button class="btn btn-primary" id="saveBtn">
+              {% if (existing_cnt|default(0))|int > 0 %}Overwrite Marks{% else %}Save Marks{% endif %}
+            </button>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">No students in this class yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+
+  <!-- Hidden delete forms for each student (outside the Save Marks form to avoid nesting) -->
+  {% if students %}
+    {% for s in students %}
+      <form id="del-stu-{{ s.student_id }}" method="post" action="{{ url_for('hw_delete_student') }}">
+        <input type="hidden" name="student_id" value="{{ s.student_id }}">
+        <input type="hidden" name="class_name" value="{{ selected_class }}">
+      </form>
+    {% endfor %}
+  {% endif %}
+
+</div>
+
+<script>
+  function setAll(val) {
+    document.querySelectorAll('input[type=radio][value="'+val+'"]').forEach(function(x){
+      x.checked = true;
+    });
+  }
+
+  (function () {
+    // Confirm-before-overwrite logic
+    var form = document.getElementById('hw-form');
+    var confirmField = document.getElementById('confirmField');
+
+    var hasExisting = Number(form.dataset.hasExisting || "0") > 0;
+    var confirmNeeded = Number(form.dataset.confirmNeeded || "0") === 1;
+    var clsName = form.dataset.class || "";
+    var hwDate = form.dataset.date || "";
+
+    form.addEventListener('submit', function (e) {
+      // Ignore submits that are targeting other forms (like delete-student) via the 'form' attribute
+      if (e.submitter && e.submitter.form && e.submitter.form.id !== form.id) return;
+
+      if ((hasExisting || confirmNeeded) && confirmField.value !== 'yes') {
+        e.preventDefault();
+        var ok = window.confirm("Homework for " + clsName + " on " + hwDate + " is already recorded. Do you want to overwrite?");
+        if (ok) {
+          confirmField.value = 'yes';
+          form.submit();
+        }
+      }
+    });
+
+    // Delete class confirm (and handle server bounce)
+    var dForm = document.getElementById('delete-class-form');
+    if (dForm) {
+      var confirmClassField = document.getElementById('deleteClassConfirm');
+      var className = dForm.dataset.class || '';
+      var bounceClass = dForm.dataset.delConfirmClass || '';
+      var studentsCnt = Number(dForm.dataset.delStudentsCnt || "0");
+
+      if (bounceClass && confirmClassField && confirmClassField.value !== 'yes') {
+        var ok1 = window.confirm("Class '" + bounceClass + "' has " + studentsCnt + " student(s). Delete class, students, and their homework?");
+        if (ok1) {
+          confirmClassField.value = 'yes';
+          dForm.submit();
+        }
+      }
+
+      dForm.addEventListener('submit', function (e) {
+        if (confirmClassField.value === 'yes') return;
+        e.preventDefault();
+        var msg = "Delete class '" + className + "'? This will remove all its students and their homework.";
+        var ok = window.confirm(msg);
+        if (ok) {
+          confirmClassField.value = 'yes';
+          dForm.submit();
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

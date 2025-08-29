@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3" id="roll-root"
+     data-class="{{ class_name }}"
+     data-date="{{ hw_date }}"
+     data-roll-post-url="{{ url_for('hw_roll') }}"
+     data-tracker-url="{{ url_for('hw_tracker') }}">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h4 class="mb-0">HW Roll — Mobile</h4>
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{{ url_for('hw_tracker', class_name=class_name, hw_date=hw_date) }}">Full view</a>
+  </div>
+
+  <form class="row g-2 mb-3" method="get" action="{{ url_for('hw_roll') }}">
+    <div class="col-6">
+      <label class="form-label">Date</label>
+      <input type="date" class="form-control" name="hw_date" value="{{ hw_date }}" onchange="this.form.submit()">
+    </div>
+    <div class="col-6">
+      <label class="form-label">Class</label>
+      <select class="form-select" name="class_name" onchange="this.form.submit()">
+        {% for c in classes %}
+          <option value="{{ c.name }}" {% if class_name == c.name %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% if not students %}
+    <div class="alert alert-warning">No students in this class yet.</div>
+  {% else %}
+    <div class="list-group mb-3" id="students-list">
+      {% for s in students %}
+        {% set m = marks.get(s.student_id) %}
+        <div class="list-group-item d-flex justify-content-between align-items-center"
+             data-student-id="{{ s.student_id }}">
+          <div class="fw-semibold">{{ s.name }}</div>
+          <div class="btn-group" role="group" aria-label="status">
+            <input type="radio" class="btn-check" name="status_{{ s.student_id }}" id="d{{ s.student_id }}" value="done" {% if m and m.status=='done' %}checked{% endif %}>
+            <label class="btn btn-success btn-sm px-3" for="d{{ s.student_id }}">Done</label>
+
+            <input type="radio" class="btn-check" name="status_{{ s.student_id }}" id="n{{ s.student_id }}" value="not_done" {% if m and m.status=='not_done' %}checked{% endif %}>
+            <label class="btn btn-outline-secondary btn-sm px-3" for="n{{ s.student_id }}">Not</label>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="d-grid gap-2">
+      <button class="btn btn-primary" id="syncNowBtn" type="button">Sync now</button>
+      <button class="btn btn-outline-secondary" id="saveOfflineBtn" type="button">Save offline</button>
+      <div class="small text-muted" id="statusMsg"></div>
+    </div>
+  {% endif %}
+</div>
+
+<!-- JSON blobs (not JavaScript) so linters don't parse them -->
+<script id="students-json" type="application/json">
+  {{ students|tojson }}
+</script>
+<script id="marks-json" type="application/json">
+  {{ marks|tojson }}
+</script>
+
+<script>
+(function(){
+  // Root & config from data-attrs (no Jinja inside JS)
+  var root = document.getElementById('roll-root');
+  if (!root) return;
+
+  var className = root.dataset.class || '';
+  var hwDate = root.dataset.date || '';
+  var postUrl = root.dataset.rollPostUrl || '';
+  var trackerUrl = root.dataset.trackerUrl || '';
+  var storageKey = "hw_offline_" + className + "_" + hwDate;
+
+  var listEl = document.getElementById('students-list');
+  var statusEl = document.getElementById('statusMsg');
+
+  function setStatus(msg){
+    if (statusEl) statusEl.innerText = msg || '';
+  }
+
+  // Collect marks by scanning DOM (no Jinja in JS)
+  function collectMarks(){
+    if (!listEl) return [];
+    var items = listEl.querySelectorAll('[data-student-id]');
+    var marks = [];
+    items.forEach(function(row){
+      var sid = row.getAttribute('data-student-id');
+      var done = row.querySelector('input[value="done"]');
+      var notd = row.querySelector('input[value="not_done"]');
+      var status = null;
+      if (done && done.checked) status = 'done';
+      else if (notd && notd.checked) status = 'not_done';
+      if (status) marks.push({ student_id: sid, status: status, grade: null });
+    });
+    return marks;
+  }
+
+  async function postMarks(confirmFlag){
+    var payload = {
+      class_name: className,
+      hw_date: hwDate,
+      marks: collectMarks(),
+      confirm: confirmFlag ? "yes" : "no"
+    };
+    var res = await fetch(postUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (res.status === 409) {
+      return { ok: false, need_confirm: true, data: null };
+    }
+    var data = null;
+    try { data = await res.json(); } catch(e){}
+    return { ok: res.ok, need_confirm: false, data: data };
+  }
+
+  // Buttons
+  var saveOfflineBtn = document.getElementById('saveOfflineBtn');
+  var syncNowBtn = document.getElementById('syncNowBtn');
+
+  if (saveOfflineBtn) {
+    saveOfflineBtn.addEventListener('click', function(){
+      var marks = collectMarks();
+      localStorage.setItem(storageKey, JSON.stringify(marks));
+      setStatus("Saved offline on this phone.");
+    });
+  }
+
+  if (syncNowBtn) {
+    syncNowBtn.addEventListener('click', async function(){
+      // Merge any offline saved data for same class/date (prefer current)
+      var offline = localStorage.getItem(storageKey);
+      if (offline) {
+        try {
+          var saved = JSON.parse(offline);
+          var map = new Map(saved.map(function(x){ return [String(x.student_id), x]; }));
+          collectMarks().forEach(function(m){ map.set(String(m.student_id), m); });
+          localStorage.setItem(storageKey, JSON.stringify(Array.from(map.values())));
+        } catch(e){}
+      }
+
+      var resp = await postMarks(false);
+      if (resp.need_confirm) {
+        if (confirm("Already marked for this date. Overwrite?")) {
+          resp = await postMarks(true);
+        } else {
+          setStatus("Sync cancelled.");
+          return;
+        }
+      }
+      if (resp.ok) {
+        localStorage.removeItem(storageKey);
+        setStatus("Synced ✔");
+      } else {
+        setStatus("Sync failed. Saved offline instead.");
+        localStorage.setItem(storageKey, JSON.stringify(collectMarks()));
+      }
+    });
+  }
+
+  // Hint if offline data exists
+  if (localStorage.getItem(storageKey)) {
+    setStatus("You have offline marks saved for this class/date. Tap 'Sync now' when online.");
+  }
+})();
+</script>
+{% endblock %}
